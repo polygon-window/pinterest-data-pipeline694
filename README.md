@@ -6,6 +6,21 @@ The goal of this project is to simulate an **Extract, Transform, Load (ETL) data
 1. **Batch Processing** – Processes data in a 24-hour cycle.
 2. **Stream Processing** – Continuously ingests and transforms data in real time.
 
+## Data Model Overview
+
+The dataset models the type of data that Pinterest would likely generate, consisting of millions of records daily. It is structured into three relational tables:
+
+- **User Table (`user`)**  
+  Stores user-related information such as first name, last name (concatenated into a `full_name` column during data cleaning), signup date, and age.
+
+- **Pin Table (`pin`)**  
+  Contains details about Pinterest posts, including follower count, post category, and the date of the post.
+
+- **Geolocation Table (`geo`)**  
+  Holds geographical data such as longitude, latitude, and country.
+
+Since these records are relational, they can be joined on common keys such as an index or a unique user ID. This enables multi-dimensional insights and aggregations, providing a comprehensive view of user behavior, content trends, and geographic distribution.
+
 ---
 
 ## Batch Processing
@@ -15,8 +30,8 @@ The batch processing component simulates an ETL process that runs daily and is f
 
 ### Workflow
 1. **Data Extraction**
-   - `user_posting_emulation_random.py` retrieves **500 records** from AWS RDS tables (`pin`, `geo`, `user`).
-   - Data is sent to **Apache Kafka** topics (`pin`, `geo`, `user`) via an API.
+   - `user_posting_emulation_random.py` retrieves **500 random records** from AWS RDS (Relational Database Services) tables (`pin`, `geo`, `user`).
+   - Data is sent to **Apache Kafka** topics (`pin`, `geo`, `user`) via an API (Application Program Interface).
    - The records are then stored in an **AWS S3 bucket** in JSON format.
 
 2. **Data Transformation**
