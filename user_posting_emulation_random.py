@@ -197,7 +197,7 @@ if __name__ == "__main__":
     file_path = "db_creds.yaml"
     db_creds = connection.read_db_creds(file_path)
 
-    # Fetch and process 500 rows sequentially
+    # Fetch and process 500 rows randomly
     try:
         run_random_post_data_loop(db_creds)
     except Exception as e:
