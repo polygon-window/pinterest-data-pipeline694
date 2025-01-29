@@ -1,32 +1,85 @@
-# pinterest-data-pipeline694
+# Pinterest Data Pipeline
 
----
 ## Introduction
 
-The aim of this project is to simulate an Extract Transform Load (ETL) data pipeline using various Amazon web services (AWS), databricks and Apache Kafka with the goal of gaining new insights from the data collected. There will be two main facets to this project: batch processing and stream processing. 
+The goal of this project is to simulate an Extract, Transform, Load (ETL) data pipeline using various Amazon Web Services (AWS), Databricks, and Apache Kafka, with the aim of extracting valuable insights from the collected data. The project consists of two main components: batch processing and stream processing.
 
----
 ## Batch Processing
 
-The aim of the batch proccesing part of the project is to be able to simulate an ETL process on pinterest data on a 24 hour batch cycle. The intention is for entire ETL process to be completely automated and run daily.
+The objective of the batch processing portion is to simulate an ETL process on Pinterest data with a 24-hour batch cycle. The goal is for the entire ETL process to be fully automated and run daily.
 
-The batch process begins with user_posting_emulation_random.py. This file connects to an AWS RDS database and randomly retrieves a predefined amount of listings (in this case 500) from each of the pin, geo and user tables. This data is then sent to an AWS EC2 instance running Apache Kafta, which ingests the data into 3 topics (pin, geo and user) via an API, which in turn sends the data to an AWS S3 bucket where it is stored in JSON format. The next step of the batch processing involves reading this JSON data from the S3 bucket into a Databricks notebook, from here the data is transformed into dataframes where it can be cleaned.
+The batch process starts with `user_posting_emulation_random.py`. This script connects to an AWS RDS database and randomly retrieves a predefined number of listings (500 in this case) from the `pin`, `geo`, and `user` tables. The data is then sent to an AWS EC2 instance running Apache Kafka, which ingests the data into three topics (`pin`, `geo`, and `user`) via an API. The data is subsequently stored in an AWS S3 bucket in JSON format.
 
-Once the data has been cleaned the data is queried using SQL within the notebook, these queries will provide various insights on each batch of data including which category of post is most popular in each country or the median count of users followers by sign up year.
+Next, the JSON data is read from the S3 bucket into a Databricks notebook. The data is transformed into dataframes for further cleaning. Once the data is cleaned, it is queried using SQL within the notebook. These queries provide insights into each batch of data, such as identifying the most popular post categories in each country or calculating the median number of followers for users by signup year.
 
-The next step was to utilise AWS Managed Workflows for Apache Airflow (MWAA) in order to schedule and automate each batch of processing. I created a Directed Acyclic Graph (DAG) that will trigger the previously mentioned notebook once per day.
+To automate the batch processing, I used AWS Managed Workflows for Apache Airflow (MWAA) to schedule the tasks. I created a Directed Acyclic Graph (DAG) to trigger the notebook execution once per day.
 
----
 ## Stream Processing
 
-The second part of the project was for stream processing of data, this time MWAA was not neccesary as the the whole process is continuous and data will be transformed and stored as it is ingested. 
+The second part of the project focuses on stream processing. Unlike batch processing, the stream processing workflow does not require MWAA since the process is continuous, and data will be transformed and stored as it is ingested.
 
-A different python file is used for this named user_posting_emulation_streaming.py, similar to the file used in the batch process this reads 500 listings from each table (user, pin, geo) to simulate the ingestion of real time pinterest data. However this file then sends the data to AWS Kinesis, an array of tools for processing and analysing real time streaming data, via an REST API post method I created using AWS API Gateway. The data is sent to three kinesis partitions (user, geo and pin) and from there this data is read in realtime to another Databricks Notebook. In this notebook the streaming data is continuously decoded and structured into user, geo and pin dataframes, before being cleaned and saved to delta tables within Databricks Hive metastore.
+For stream processing, a different Python script, `user_posting_emulation_streaming.py`, is used. This script simulates the ingestion of real-time Pinterest data by reading 500 listings from each of the `user`, `pin`, and `geo` tables. The data is sent to AWS Kinesis—a suite of tools for processing and analyzing real-time streaming data—via a REST API POST method created with AWS API Gateway.
+
+The data is distributed across three Kinesis partitions (`user`, `geo`, and `pin`). From there, the data is read in real time into another Databricks notebook. In the notebook, the streaming data is continuously decoded and structured into `user`, `geo`, and `pin` dataframes. After cleaning, the data is saved to Delta tables within the Databricks Hive metastore.
 
 ---
 ## File Structure
 
+### `user_posting_emulation.py`
+This script retrieves random records from an **AWS RDS MySQL database** and sends them to an **AWS API Gateway endpoint** for further processing.  
 
+#### **Key Components**
+- **`AWSDBConnector`**: Reads database credentials from a YAML file and establishes a connection to MySQL using SQLAlchemy.  
+- **`run_random_post_data_loop(db_creds, num_rows=500)`**:  
+  - Randomly selects **500** rows from three tables:  
+    - `pinterest_data`  
+    - `geolocation_data`  
+    - `user_data`  
+  - Sends the data to different Kafka topics via **AWS API Gateway**.  
+- **Data Processing Functions:**  
+  - `send_user_requests(user_result)` → Sends user data.  
+  - `send_pin_requests(pin_result)` → Sends Pinterest post data.  
+  - `send_geo_requests(geo_result)` → Sends geolocation data.  
+
+This script runs in a loop, making API requests after fetching data, with small delays to simulate real-time streaming.
+
+### `user_posting_emulation_kinesis.py`
+This script retrieves random records from an **AWS RDS MySQL database** and sends them to an **AWS Kinesis Data Stream** via **API Gateway** for real-time processing.  
+
+#### **Key Components**
+- **`AWSDBConnector`**:  
+  - Reads database credentials from a YAML file.  
+  - Establishes a connection to MySQL using **SQLAlchemy**.  
+
+- **`run_random_post_data_loop(db_creds, num_rows=500)`**:  
+  - Randomly selects **500** rows from the following tables:  
+    - `pinterest_data`  
+    - `geolocation_data`  
+    - `user_data`  
+  - Sends the data to different **Kinesis partitions** via **AWS API Gateway**.  
+
+- **Data Processing Functions:**  
+  - `send_user_requests(user_result)` → Sends user data to Kinesis.  
+  - `send_pin_requests(pin_result)` → Sends Pinterest post data to Kinesis.  
+  - `send_geo_requests(geo_result)` → Sends geolocation data to Kinesis.  
+
+Each request is sent using **HTTP PUT** to the API Gateway endpoint, structured to match the expected Kinesis payload format. The script introduces small delays to simulate real-time data ingestion.
+
+### `airflow_databricks_dag.py`
+This **Apache Airflow DAG** automates the execution of a **Databricks notebook** on a scheduled basis.
+
+#### **Key Components**
+- **DAG Configuration (`default_args`)**:  
+  - Owned by **Robert Edwards**.  
+  - Retries **once** with a **2-minute delay** on failure.  
+  - Runs **daily** (`@daily` schedule interval).  
+
+- **Databricks Notebook Execution**:  
+  - Uses **`DatabricksSubmitRunOperator`** to submit a run for the notebook at:  
+    `/Workspace/Users/robbiejedwards@hotmail.com/pinterest_project_databricks`.  
+  - Connects to an **existing Databricks cluster** (`1108-162752-8okw8dgg`).  
+
+This DAG is designed to **automate Pinterest data processing** in Databricks using **Airflow**. 
 
 ---
 ## API Structure
