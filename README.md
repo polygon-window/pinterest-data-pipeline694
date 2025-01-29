@@ -99,7 +99,6 @@ An **Apache Airflow DAG** that schedules **Databricks notebook execution**.
 #### Proxy Route
 - `/{proxy+}`
   - **ANY**: Handles any HTTP method
-  - **OPTIONS**: Supports CORS preflight requests
 
 #### Streams Resource
 - `/streams`
