@@ -27,8 +27,10 @@ A different python file is used for this named user_posting_emulation_streaming.
 ## File Structure
 
 
+
 ---
 ## API Structure
+<img width="280" alt="Screenshot 2025-01-29 at 14 35 23" src="https://github.com/user-attachments/assets/c5cf7695-c987-4419-bb78-b26bc46d4da2" />
 
 ---
 ### Insights
