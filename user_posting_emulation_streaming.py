@@ -1,4 +1,5 @@
 import requests
+from time import sleep
 import random
 import multiprocessing
 import boto3
@@ -6,7 +7,8 @@ import json
 import sqlalchemy
 import yaml
 from sqlalchemy import text
-from time import sleep
+
+
 
 random.seed(100)
 
@@ -16,7 +18,6 @@ class AWSDBConnector:
     def read_db_creds(self, file_path):
         """
         Reads the database credentials from a YAML file.
-
         :param file_path: Path to the credentials YAML file.
         :return: A dictionary with the credentials.
         """
@@ -90,31 +91,34 @@ def run_random_post_data_loop(db_creds, num_rows=500):
 
 
 def send_user_requests(user_result):
-
-    invoke_url = "https://ud7zikav8k.execute-api.us-east-1.amazonaws.com/Test/topics/c1b2415b9314.user"
-    # Define the headers explicitly
-    headers = {'Content-Type': 'application/vnd.kafka.json.v2+json'}
+    invoke_url = "https://ud7zikav8k.execute-api.us-east-1.amazonaws.com/Test/streams/Kinesis-Prod-Stream/record"
+    headers = {'Content-Type': 'application/json'}
+    
     # Convert datetime to string for JSON serialization
-    user_result["date_joined"] = user_result["date_joined"].isoformat()  # Convert to ISO 8601 format
-    # To send JSON messages you need to follow this structure
+    user_result["date_joined"] = user_result["date_joined"].isoformat()
+    
+    # Create the payload matching the API Gateway's mapping template
     payload = json.dumps({
-        "records": [
-            {
-                # Data should be sent as key-value pairs
-                "value": {
-                    "index": user_result["ind"],
-                    "first_name": user_result["first_name"],
-                    "last_name": user_result["last_name"],
-                    "age": user_result["age"],
-                    "date_joined": user_result["date_joined"]
-                }
-            }
-        ]
+        "StreamName": "Kinesis-Prod-Stream",
+        "Data": {
+            "index": user_result["ind"],
+            "first_name": user_result["first_name"],
+            "last_name": user_result["last_name"],
+            "age": user_result["age"],
+            "date_joined": user_result["date_joined"]
+            },  
+            "PartitionKey": "user-partition"
     })
+           
+    print("Payload being sent:", payload)  # Debugging: print payload
+    
     try:
-        response = requests.post(invoke_url, headers=headers, data=payload)
+        # Send the request using PUT method
+        response = requests.put(invoke_url, headers=headers, data=payload)
+        
         if response.status_code == 200:
             print("Request successful:", response.json())
+            print(response.content)
         else:
             print(f"Failed with status code {response.status_code}: {response.text}")
     except requests.exceptions.RequestException as e:
@@ -123,33 +127,31 @@ def send_user_requests(user_result):
 
 def send_pin_requests(pin_result):
 
-    invoke_url = "https://ud7zikav8k.execute-api.us-east-1.amazonaws.com/Test/topics/c1b2415b9314.pin"
+    invoke_url = "https://ud7zikav8k.execute-api.us-east-1.amazonaws.com/Test/streams/Kinesis-Prod-Stream/record"
     # Define the headers explicitly
-    headers = {'Content-Type': 'application/vnd.kafka.json.v2+json'}
+    headers = {'Content-Type': 'application/json'}
     # To send JSON messages you need to follow this structure
     payload = json.dumps({
-        "records": [
-            {
-                # Data should be sent as key-value pairs
-                "value": {
-                    "index": pin_result["index"],
-                    "unique_id": pin_result["unique_id"],
-                    "title": pin_result["title"],
-                    "description": pin_result["description"],
-                    "poster_name": pin_result["poster_name"],
-                    "follower_count": pin_result["follower_count"],
-                    "tag_list": pin_result["tag_list"],
-                    "is_image_or_video": pin_result["is_image_or_video"],
-                    "image_src": pin_result["image_src"],
-                    "downloaded": pin_result["downloaded"],
-                    "save_location": pin_result["save_location"],
-                    "category": pin_result["category"]
-                }
-            }
-        ]
+        "StreamName": "Kinesis-Prod-Stream",
+        "Data": {
+            # Data should be sent as key-value pairs
+            "index": pin_result["index"],
+            "unique_id": pin_result["unique_id"],
+            "title": pin_result["title"],
+            "description": pin_result["description"],
+            "poster_name": pin_result["poster_name"],
+            "follower_count": pin_result["follower_count"],
+            "tag_list": pin_result["tag_list"],
+            "is_image_or_video": pin_result["is_image_or_video"],
+            "image_src": pin_result["image_src"],
+            "downloaded": pin_result["downloaded"],
+            "save_location": pin_result["save_location"],
+            "category": pin_result["category"]
+            },
+            "PartitionKey": "pin-partition"
     })
     try:
-        response = requests.post(invoke_url, headers=headers, data=payload)
+        response = requests.put(invoke_url, headers=headers, data=payload)
         if response.status_code == 200:
             print("Request successful:", response.json())
         else:
@@ -159,30 +161,28 @@ def send_pin_requests(pin_result):
 
 def send_geo_requests(geo_result):
 
-    invoke_url = "https://ud7zikav8k.execute-api.us-east-1.amazonaws.com/Test/topics/c1b2415b9314.geo"
+    invoke_url = "https://ud7zikav8k.execute-api.us-east-1.amazonaws.com/Test/streams/Kinesis-Prod-Stream/record"
     # Define the headers explicitly
-    headers = {'Content-Type': 'application/vnd.kafka.json.v2+json'}
+    headers = {'Content-Type': 'application/json'}
     # Convert datetime to string for JSON serialization
     geo_result["timestamp"] = geo_result["timestamp"].isoformat()  # Convert to ISO 8601 format
     # To send JSON messages you need to follow this structure
     payload = json.dumps({
-        "records": [
-            {
-                # Data should be sent as key-value pairs
-                "value": {
-                    "index": geo_result["ind"],
-                    "timestamp": geo_result["timestamp"],
-                    "latitude": geo_result["latitude"],
-                    "longitude": geo_result["longitude"],
-                    "country": geo_result["country"]
-                }
-            }
-        ]
+        "StreamName": "Kinesis-Prod-Stream",
+        "Data": {
+            "index": geo_result["ind"],
+            "timestamp": geo_result["timestamp"],
+            "latitude": geo_result["latitude"],
+            "longitude": geo_result["longitude"],
+            "country": geo_result["country"]
+            },
+            "PartitionKey": "geo-partition"
     })
     try:
-        response = requests.post(invoke_url, headers=headers, data=payload)
+        response = requests.put(invoke_url, headers=headers, data=payload)
         if response.status_code == 200:
             print("Request successful:", response.json())
+            print(response.content)
         else:
             print(f"Failed with status code {response.status_code}: {response.text}")
     except requests.exceptions.RequestException as e:
