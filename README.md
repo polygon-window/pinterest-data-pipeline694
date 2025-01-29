@@ -1,96 +1,105 @@
 # Pinterest Data Pipeline
 
 ## Introduction
+The goal of this project is to simulate an **Extract, Transform, Load (ETL) data pipeline** using various **Amazon Web Services (AWS), Databricks, and Apache Kafka**, with the aim of extracting valuable insights from the collected data. The project consists of two main components:
 
-The goal of this project is to simulate an Extract, Transform, Load (ETL) data pipeline using various Amazon Web Services (AWS), Databricks, and Apache Kafka, with the aim of extracting valuable insights from the collected data. The project consists of two main components: batch processing and stream processing.
+1. **Batch Processing** – Processes data in a 24-hour cycle.
+2. **Stream Processing** – Continuously ingests and transforms data in real time.
+
+---
 
 ## Batch Processing
 
-The objective of the batch processing portion is to simulate an ETL process on Pinterest data with a 24-hour batch cycle. The goal is for the entire ETL process to be fully automated and run daily.
+### Overview
+The batch processing component simulates an ETL process that runs daily and is fully automated.
 
-The batch process starts with `user_posting_emulation_random.py`. This script connects to an AWS RDS database and randomly retrieves a predefined number of listings (500 in this case) from the `pin`, `geo`, and `user` tables. The data is then sent to an AWS EC2 instance running Apache Kafka, which ingests the data into three topics (`pin`, `geo`, and `user`) via an API. The data is subsequently stored in an AWS S3 bucket in JSON format.
+### Workflow
+1. **Data Extraction**
+   - `user_posting_emulation_random.py` retrieves **500 records** from AWS RDS tables (`pin`, `geo`, `user`).
+   - Data is sent to **Apache Kafka** topics (`pin`, `geo`, `user`) via an API.
+   - The records are then stored in an **AWS S3 bucket** in JSON format.
 
-Next, the JSON data is read from the S3 bucket into a Databricks notebook. The data is transformed into dataframes for further cleaning. Once the data is cleaned, it is queried using SQL within the notebook. These queries provide insights into each batch of data, such as identifying the most popular post categories in each country or calculating the median number of followers for users by signup year.
+2. **Data Transformation**
+   - The JSON files from S3 are loaded into a **Databricks notebook**.
+   - The data is converted into **dataframes** and cleaned.
+   - SQL queries generate insights, such as:
+     - Most popular post categories per country.
+     - Median number of followers per signup year.
 
-To automate the batch processing, I used AWS Managed Workflows for Apache Airflow (MWAA) to schedule the tasks. I created a Directed Acyclic Graph (DAG) to trigger the notebook execution once per day.
+3. **Automation**
+   - AWS **Managed Workflows for Apache Airflow (MWAA)** schedules the tasks.
+   - A **Directed Acyclic Graph (DAG)** triggers the Databricks notebook **once per day**.
+
+---
 
 ## Stream Processing
 
-The second part of the project focuses on stream processing. Unlike batch processing, the stream processing workflow does not require MWAA since the process is continuous, and data will be transformed and stored as it is ingested.
+### Overview
+Unlike batch processing, the **stream processing workflow** runs continuously, transforming and storing data in real-time.
 
-For stream processing, a different Python script, `user_posting_emulation_streaming.py`, is used. This script simulates the ingestion of real-time Pinterest data by reading 500 listings from each of the `user`, `pin`, and `geo` tables. The data is sent to AWS Kinesis—a suite of tools for processing and analyzing real-time streaming data—via a REST API POST method created with AWS API Gateway.
+### Workflow
+1. **Data Ingestion**
+   - `user_posting_emulation_streaming.py` retrieves **500 records** from `user`, `pin`, and `geo` tables.
+   - Data is sent to **AWS Kinesis** via an **AWS API Gateway REST API**.
 
-The data is distributed across three Kinesis partitions (`user`, `geo`, and `pin`). From there, the data is read in real time into another Databricks notebook. In the notebook, the streaming data is continuously decoded and structured into `user`, `geo`, and `pin` dataframes. After cleaning, the data is saved to Delta tables within the Databricks Hive metastore.
+2. **Real-Time Data Processing**
+   - Kinesis partitions data into three topics: `user`, `geo`, and `pin`.
+   - Databricks reads the streaming data and structures it into **dataframes**.
+   - Cleaned data is stored in **Delta tables** within the **Databricks Hive metastore**.
 
 ---
+
 ## File Structure
 
-### `user_posting_emulation.py`
-This script retrieves random records from an **AWS RDS MySQL database** and sends them to an **AWS API Gateway endpoint** for further processing.  
+### `user_posting_emulation_random.py`
+Simulates user activity and sends extracted data to an AWS EC2 instance running Apache Kafka via **AWS API Gateway**.
 
 #### **Key Components**
-- **`AWSDBConnector`**: Reads database credentials from a YAML file and establishes a connection to MySQL using SQLAlchemy.  
-- **`run_random_post_data_loop(db_creds, num_rows=500)`**:  
-  - Randomly selects **500** rows from three tables:  
-    - `pinterest_data`  
-    - `geolocation_data`  
-    - `user_data`  
-  - Sends the data to different Kafka topics via **AWS API Gateway**.  
-- **Data Processing Functions:**  
-  - `send_user_requests(user_result)` → Sends user data.  
-  - `send_pin_requests(pin_result)` → Sends Pinterest post data.  
-  - `send_geo_requests(geo_result)` → Sends geolocation data.  
+- **Database Connection**: Uses `AWSDBConnector` to fetch credentials and connect to AWS RDS MySQL.
+- **Data Extraction & Processing**:
+  - Extracts **500 random rows** from `user`, `pin`, and `geo` tables.
+  - Sends data to **Kafka topics** via API Gateway.
+- **Functions**:
+  - `send_user_requests(user_result)` → Sends user data.
+  - `send_pin_requests(pin_result)` → Sends Pinterest post data.
+  - `send_geo_requests(geo_result)` → Sends geolocation data.
 
-This script runs in a loop, making API requests after fetching data, with small delays to simulate real-time streaming.
-
-### `user_posting_emulation_kinesis.py`
-This script retrieves random records from an **AWS RDS MySQL database** and sends them to an **AWS Kinesis Data Stream** via **API Gateway** for real-time processing.  
+### `user_posting_emulation_streaming.py`
+Similar to `user_posting_emulation.py`, but sends data to **AWS Kinesis** for real-time processing.
 
 #### **Key Components**
-- **`AWSDBConnector`**:  
-  - Reads database credentials from a YAML file.  
-  - Establishes a connection to MySQL using **SQLAlchemy**.  
-
-- **`run_random_post_data_loop(db_creds, num_rows=500)`**:  
-  - Randomly selects **500** rows from the following tables:  
-    - `pinterest_data`  
-    - `geolocation_data`  
-    - `user_data`  
-  - Sends the data to different **Kinesis partitions** via **AWS API Gateway**.  
-
-- **Data Processing Functions:**  
-  - `send_user_requests(user_result)` → Sends user data to Kinesis.  
-  - `send_pin_requests(pin_result)` → Sends Pinterest post data to Kinesis.  
-  - `send_geo_requests(geo_result)` → Sends geolocation data to Kinesis.  
-
-Each request is sent using **HTTP PUT** to the API Gateway endpoint, structured to match the expected Kinesis payload format. The script introduces small delays to simulate real-time data ingestion.
+- **Database Connection**: Uses `AWSDBConnector` to fetch credentials and connect to AWS RDS MySQL.
+- **Data Extraction & Processing**:
+  - Extracts **500 random rows** from `user`, `pin`, and `geo` tables.
+  - Sends data to **AWS Kinesis partitions** via **AWS API Gateway**.
+- **Functions**:
+  - `send_user_requests(user_result)` → Sends user data to Kinesis.
+  - `send_pin_requests(pin_result)` → Sends Pinterest post data to Kinesis.
+  - `send_geo_requests(geo_result)` → Sends geolocation data to Kinesis.
 
 ### `airflow_databricks_dag.py`
-This **Apache Airflow DAG** automates the execution of a **Databricks notebook** on a scheduled basis.
+An **Apache Airflow DAG** that schedules **Databricks notebook execution**.
 
 #### **Key Components**
-- **DAG Configuration (`default_args`)**:  
-  - Owned by **Robert Edwards**.  
-  - Retries **once** with a **2-minute delay** on failure.  
-  - Runs **daily** (`@daily` schedule interval).  
-
-- **Databricks Notebook Execution**:  
-  - Uses **`DatabricksSubmitRunOperator`** to submit a run for the notebook at:  
-    `/Workspace/Users/robbiejedwards@hotmail.com/pinterest_project_databricks`.  
-  - Connects to an **existing Databricks cluster** (`1108-162752-8okw8dgg`).  
-
-This DAG is designed to **automate Pinterest data processing** in Databricks using **Airflow**. 
+- **DAG Configuration (`default_args`)**:
+  - Owned by **Robert Edwards**.
+  - Retries **once** with a **2-minute delay** on failure.
+  - Runs **daily** (`@daily` schedule interval).
+- **Databricks Notebook Execution**:
+  - Uses **`DatabricksSubmitRunOperator`** to submit a job to Databricks.
+  - Executes the notebook at `/Workspace/Users/robbiejedwards@hotmail.com/pinterest_project_databricks`.
+  - Runs on cluster `1108-162752-8okw8dgg`.
 
 ---
+
 ## API Structure
-<img width="280" alt="Screenshot 2025-01-29 at 14 35 23" src="https://github.com/user-attachments/assets/c5cf7695-c987-4419-bb78-b26bc46d4da2" />
 
 ### Root Endpoint `/`
 
 #### Proxy Route
 - `/{proxy+}`
   - **ANY**: Handles any HTTP method
-
+  - **OPTIONS**: Supports CORS preflight requests
 
 #### Streams Resource
 - `/streams`
@@ -108,4 +117,13 @@ This DAG is designed to **automate Pinterest data processing** in Databricks usi
 - `/streams/{stream-name}/records`
   - **PUT**: Insert or update multiple records in the stream
 
+---
+
+## ETL Pipeline Architecture 
+
+<img width="1009" alt="Screenshot 2025-01-29 at 17 03 29" src="https://github.com/user-attachments/assets/5faf58c2-c17c-4e36-b5da-e42fcb3fc7ab" />
+
+
+## Summary
+This project successfully simulates an ETL pipeline using AWS, Databricks, and Apache Kafka for Pinterest data processing. It demonstrates both **batch and stream processing**, leveraging cloud services to extract insights in an automated and scalable manner.
 
