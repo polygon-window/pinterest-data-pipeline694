@@ -85,6 +85,27 @@ This DAG is designed to **automate Pinterest data processing** in Databricks usi
 ## API Structure
 <img width="280" alt="Screenshot 2025-01-29 at 14 35 23" src="https://github.com/user-attachments/assets/c5cf7695-c987-4419-bb78-b26bc46d4da2" />
 
----
-### Insights
+### Root Endpoint `/`
+
+#### Proxy Route
+- `/{proxy+}`
+  - **ANY**: Handles any HTTP method
+
+
+#### Streams Resource
+- `/streams`
+  - **GET**: Retrieve a list of available streams
+
+#### Specific Stream
+- `/streams/{stream-name}`
+  - **GET**: Retrieve details of a specific stream
+
+#### Stream Record
+- `/streams/{stream-name}/record`
+  - **PUT**: Insert or update a single record in the stream
+
+#### Stream Records
+- `/streams/{stream-name}/records`
+  - **PUT**: Insert or update multiple records in the stream
+
 
