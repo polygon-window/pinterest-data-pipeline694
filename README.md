@@ -141,3 +141,11 @@ An **Apache Airflow DAG** that schedules **Databricks notebook execution**.
 ## Summary
 This project successfully simulates an ETL pipeline using AWS, Databricks, and Apache Kafka for Pinterest data processing. It demonstrates both **batch and stream processing**, leveraging cloud services to extract insights in an automated and scalable manner.
 
+
+## ETL Pipeline Architecture 
+
+<img width="1009" alt="Screenshot 2025-01-29 at 17 03 29" src="https://github.com/user-attachments/assets/5faf58c2-c17c-4e36-b5da-e42fcb3fc7ab" />
+
+
+## Summary
+This project successfully simulates an ETL pipeline using AWS, Databricks, and Apache Kafka for Pinterest data processing. It demonstrates both **batch and stream processing**, leveraging cloud services to extract insights in an automated and scalable manner.
