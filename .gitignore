@@ -1,2 +1,13 @@
 db_creds.yaml
-data/c1b2415b9314-key-pair.pem
+c1b2415b9314-key-pair.pem
+backup1.py
+backup2.py
+databricks_kinesis_notebook.ipynb
+pinterest_pipeline_chart.pdf
+pinterest_sql_queries.sql
+project_3.code-workspace
+test_2.py
+testing.py
+user_posting_emulation.py
+user_posting_emulation_original.py
+__pycache__
