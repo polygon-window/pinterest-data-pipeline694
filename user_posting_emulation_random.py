@@ -1,45 +1,28 @@
 import requests
 import random
-import multiprocessing
 import boto3
 import json
 import sqlalchemy
+import multiprocessing
 import yaml
+import db_connector
+import configparser
 from sqlalchemy import text
 from time import sleep
 
+# Retrieve config information from config.ini
+config = configparser.ConfigParser()
+config.read("config.ini")
+# Base URL for API Gateway
+BASE_INVOKE_URL = config.get("endpoints", "api_url")
+
+# Define headers
+HEADERS = {'Content-Type': 'application/vnd.kafka.json.v2+json'}
+
 random.seed(100)
+new_connector = db_connector.AWSDBConnector()
 
-
-class AWSDBConnector:
-
-    def read_db_creds(self, file_path):
-        """
-        Reads the database credentials from a YAML file.
-
-        :param file_path: Path to the credentials YAML file.
-        :return: A dictionary with the credentials.
-        """
-        with open(file_path, "r") as file:
-            data = yaml.safe_load(file)
-        return data
-        
-    def create_db_connector(self, creds):
-        host = creds["RDS_HOST"]
-        password = creds["RDS_PASSWORD"]
-        user = creds["RDS_USER"]
-        database = creds["RDS_DATABASE"]
-        port = creds["RDS_PORT"]
-
-        engine = sqlalchemy.create_engine(f"mysql+pymysql://{user}:{password}@{host}:{port}/{database}?charset=utf8mb4")
-        return engine
-
-
-new_connector = AWSDBConnector()
-
-
-
-def run_random_post_data_loop(db_creds, num_rows=500):
+def run_random_post_data_loop(db_creds: dict, num_rows=500) -> None:
     """
     Randomly fetches rows from user_data, geolocation_data, and pinterest_data tables
     and processes them.
@@ -72,8 +55,6 @@ def run_random_post_data_loop(db_creds, num_rows=500):
             for row in user_selected_row:
                 user_result = dict(row._mapping)
 
-
-
             # Print results for debugging
             print("Randomly fetched rows:")
             print("  user_result:", user_result)
@@ -82,121 +63,95 @@ def run_random_post_data_loop(db_creds, num_rows=500):
 
             # Process the fetched results
             if user_result:
-                send_user_requests(user_result)
+                send_requests(user_result, "user")
             if geo_result:
-                send_geo_requests(geo_result)
+                send_requests(geo_result, "geo")
             if pin_result:
-                send_pin_requests(pin_result)
+                send_requests(pin_result, "pin")
 
+def send_requests(result: dict, request_type: str) -> None:
+    """
+    Sends data to the appropriate Kafka topic via AWS API Gateway.
 
-def send_user_requests(user_result):
-
-    invoke_url = "https://ud7zikav8k.execute-api.us-east-1.amazonaws.com/Test/topics/c1b2415b9314.user"
-    # Define the headers explicitly
-    headers = {'Content-Type': 'application/vnd.kafka.json.v2+json'}
-    # Convert datetime to string for JSON serialization
-    user_result["date_joined"] = user_result["date_joined"].isoformat()  # Convert to ISO 8601 format
-    # To send JSON messages you need to follow this structure
-    payload = json.dumps({
-        "records": [
-            {
-                # Data should be sent as key-value pairs
-                "value": {
-                    "index": user_result["ind"],
-                    "first_name": user_result["first_name"],
-                    "last_name": user_result["last_name"],
-                    "age": user_result["age"],
-                    "date_joined": user_result["date_joined"]
+    :param result: Dictionary containing the data to be sent.
+    :param request_type: Type of request ('user', 'pin', 'geo').
+    """
+    # Define the appropriate endpoint for the request type
+    invoke_url = f"{BASE_INVOKE_URL}.{request_type}"
+    if request_type == "user":
+        # Convert datetime to string for JSON serialization
+        result["date_joined"] = result["date_joined"].isoformat()  # Convert to ISO 8601 format
+        # To send JSON messages you need to follow this structure
+        payload = json.dumps({
+            "records": [
+                {
+                    # Data should be sent as key-value pairs
+                    "value": {
+                        "index": result["ind"],
+                        "first_name": result["first_name"],
+                        "last_name": result["last_name"],
+                        "age": result["age"],
+                        "date_joined": result["date_joined"]
+                    }
                 }
-            }
-        ]
-    })
+            ]
+        })
+    elif request_type == "pin":
+        # To send JSON messages you need to follow this structure
+        payload = json.dumps({
+            "records": [
+                {
+                    # Data should be sent as key-value pairs
+                    "value": {
+                        "index": result["index"],
+                        "unique_id": result["unique_id"],
+                        "title": result["title"],
+                        "description": result["description"],
+                        "poster_name": result["poster_name"],
+                        "follower_count": result["follower_count"],
+                        "tag_list": result["tag_list"],
+                        "is_image_or_video": result["is_image_or_video"],
+                        "image_src": result["image_src"],
+                        "downloaded": result["downloaded"],
+                        "save_location": result["save_location"],
+                        "category": result["category"]
+                    }
+                }
+            ]
+        })
+    elif request_type == "geo":
+        # Convert datetime to string for JSON serialization
+        result["timestamp"] = result["timestamp"].isoformat()  # Convert to ISO 8601 format
+         # To send JSON messages you need to follow this structure
+        payload = json.dumps({
+            "records": [
+                {
+                    # Data should be sent as key-value pairs
+                    "value": {
+                        "index": result["ind"],
+                        "timestamp": result["timestamp"],
+                        "latitude": result["latitude"],
+                        "longitude": result["longitude"],
+                        "country": result["country"]
+                    }
+                }
+            ]
+        })
     try:
-        response = requests.post(invoke_url, headers=headers, data=payload)
+        response = requests.post(invoke_url, headers=HEADERS, data=payload)
         if response.status_code == 200:
-            print("Request successful:", response.json())
+            print("Request succesful:", response.json())
         else:
-            print(f"Failed with status code {response.status_code}: {response.text}")
+            print(f"Request failed with status code: {response.status_code}: {response.text}")
     except requests.exceptions.RequestException as e:
         print(f"An error occurred: {e}")
-
-
-def send_pin_requests(pin_result):
-
-    invoke_url = "https://ud7zikav8k.execute-api.us-east-1.amazonaws.com/Test/topics/c1b2415b9314.pin"
-    # Define the headers explicitly
-    headers = {'Content-Type': 'application/vnd.kafka.json.v2+json'}
-    # To send JSON messages you need to follow this structure
-    payload = json.dumps({
-        "records": [
-            {
-                # Data should be sent as key-value pairs
-                "value": {
-                    "index": pin_result["index"],
-                    "unique_id": pin_result["unique_id"],
-                    "title": pin_result["title"],
-                    "description": pin_result["description"],
-                    "poster_name": pin_result["poster_name"],
-                    "follower_count": pin_result["follower_count"],
-                    "tag_list": pin_result["tag_list"],
-                    "is_image_or_video": pin_result["is_image_or_video"],
-                    "image_src": pin_result["image_src"],
-                    "downloaded": pin_result["downloaded"],
-                    "save_location": pin_result["save_location"],
-                    "category": pin_result["category"]
-                }
-            }
-        ]
-    })
-    try:
-        response = requests.post(invoke_url, headers=headers, data=payload)
-        if response.status_code == 200:
-            print("Request successful:", response.json())
-        else:
-            print(f"Failed with status code {response.status_code}: {response.text}")
-    except requests.exceptions.RequestException as e:
-        print(f"An error occurred: {e}")
-
-def send_geo_requests(geo_result):
-
-    invoke_url = "https://ud7zikav8k.execute-api.us-east-1.amazonaws.com/Test/topics/c1b2415b9314.geo"
-    # Define the headers explicitly
-    headers = {'Content-Type': 'application/vnd.kafka.json.v2+json'}
-    # Convert datetime to string for JSON serialization
-    geo_result["timestamp"] = geo_result["timestamp"].isoformat()  # Convert to ISO 8601 format
-    # To send JSON messages you need to follow this structure
-    payload = json.dumps({
-        "records": [
-            {
-                # Data should be sent as key-value pairs
-                "value": {
-                    "index": geo_result["ind"],
-                    "timestamp": geo_result["timestamp"],
-                    "latitude": geo_result["latitude"],
-                    "longitude": geo_result["longitude"],
-                    "country": geo_result["country"]
-                }
-            }
-        ]
-    })
-    try:
-        response = requests.post(invoke_url, headers=headers, data=payload)
-        if response.status_code == 200:
-            print("Request successful:", response.json())
-        else:
-            print(f"Failed with status code {response.status_code}: {response.text}")
-    except requests.exceptions.RequestException as e:
-        print(f"An error occurred: {e}")
-
-
-
+    
 if __name__ == "__main__":
     # Initialize the connector object
-    connection = AWSDBConnector()
+    connection = db_connector.AWSDBConnector()
     # Load the credentials
     file_path = "db_creds.yaml"
     db_creds = connection.read_db_creds(file_path)
-
     # Fetch and process 500 rows randomly
     try:
         run_random_post_data_loop(db_creds)
