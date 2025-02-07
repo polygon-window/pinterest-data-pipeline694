@@ -66,6 +66,14 @@ Unlike batch processing, the **stream processing workflow** runs continuously, t
 
 ## File Structure
 
+### 'db_connector.py'
+ Contains the class AWSDBConnector, this class contains two methods that handle the sqlalchemy connection to the AWS relational database.
+
+#### **Key Components**
+- **read_db_creds**: Reads the database credentials from a YAML file.
+- **create_db_connector**: Takes the credentials read from **read_db_creds** and uses them to create the sqlalchemy engine.
+
+
 ### `user_posting_emulation_random.py`
 Simulates user activity and sends extracted data to an AWS EC2 instance running Apache Kafka via **AWS API Gateway**.
 
